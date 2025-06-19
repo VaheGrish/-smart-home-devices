@@ -68,7 +68,7 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	if updateReq.Type != nil {
 		updateExpr += ", #T = :type"
 		exprAttrValues[":type"] = &types.AttributeValueMemberS{Value: *updateReq.Type}
-		exprAttrNames["#T"] = "type" 
+		exprAttrNames["#T"] = "type"
 	}
 	if updateReq.HomeID != nil {
 		updateExpr += ", homeId = :homeId"

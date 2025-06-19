@@ -38,7 +38,7 @@ func handler(ctx context.Context, event events.SQSEvent) error {
 
 		var msg UpdateMessage
 		if err := json.Unmarshal([]byte(record.Body), &msg); err != nil {
-			fmt.Println("Failed to unmarshal:", err)
+			fmt.Println("Failed to unmarshal message:", err)
 			continue
 		}
 
@@ -55,7 +55,7 @@ func handler(ctx context.Context, event events.SQSEvent) error {
 			},
 		})
 		if err != nil {
-			fmt.Println("Update error:", err)
+			fmt.Printf("Failed to update device %s: %v\n", msg.ID, err)
 			continue
 		}
 		fmt.Println("Updated device:", msg.ID)
