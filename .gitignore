@@ -1,0 +1,23 @@
+# Go build artifacts
+bin/
+build/
+cmd/**/bootstrap
+
+# Dependency directories
+vendor/
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Serverless artifacts
+.serverless/
+
+# Logs and temp files
+*.log
+*.tmp

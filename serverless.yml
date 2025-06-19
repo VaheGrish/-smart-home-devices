@@ -1,0 +1,87 @@
+service: smart-home-device-service
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: provided.al2
+  region: us-east-1
+  memorySize: 128
+  timeout: 10
+
+  environment:
+    DEVICES_TABLE: DevicesTable
+    DEVICE_QUEUE_URL:
+      Ref: DeviceQueue
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:GetItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:Scan
+        - sqs:SendMessage
+        - sqs:ReceiveMessage
+        - sqs:DeleteMessage
+        - sqs:GetQueueAttributes
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: "*"
+
+package:
+  individually: true
+  exclude:
+    - "**"
+
+functions:
+  create:
+    handler: bootstrap
+    package:
+      artifact: build/create.zip
+
+  get:
+    handler: bootstrap
+    package:
+      artifact: build/get.zip
+
+  update:
+    handler: bootstrap
+    package:
+      artifact: build/update.zip
+
+  delete:
+    handler: bootstrap
+    package:
+      artifact: build/delete.zip
+
+  sqs:
+    handler: bootstrap
+    package:
+      artifact: build/sqs.zip
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - DeviceQueue
+              - Arn
+
+resources:
+  Resources:
+    DevicesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: DevicesTable
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    DeviceQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: DeviceAssociationQueue
