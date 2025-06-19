@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -12,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"os"
 )
 
 type Device struct {
@@ -41,7 +41,10 @@ func init() {
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	id := req.PathParameters["id"]
 	if id == "" {
-		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Missing device ID"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Body:       "Missing device ID",
+		}, nil
 	}
 
 	resp, err := dynamoClient.GetItem(ctx, &dynamodb.GetItemInput{
@@ -51,24 +54,39 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		},
 	})
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: fmt.Sprintf("DynamoDB error: %v", err)}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Body:       fmt.Sprintf("DynamoDB error: %v", err),
+		}, nil
 	}
 
 	if resp.Item == nil || len(resp.Item) == 0 {
-		return events.APIGatewayProxyResponse{StatusCode: 404, Body: "Device not found"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 404,
+			Body:       "Device not found",
+		}, nil
 	}
 
 	var device Device
 	if err := attributevalue.UnmarshalMap(resp.Item, &device); err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Unmarshal error"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Body:       "Unmarshal error",
+		}, nil
 	}
 
 	body, err := json.Marshal(device)
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Marshal error"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Body:       "Marshal error",
+		}, nil
 	}
 
-	return events.APIGatewayProxyResponse{StatusCode: 200, Body: string(body)}, nil
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Body:       string(body),
+	}, nil
 }
 
 func main() {

@@ -4,26 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"time"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"os"
+	"time"
 )
 
 type Device struct {
-    ID         string `json:"id" dynamodbav:"id"`
-    Mac        string `json:"mac" dynamodbav:"mac"`
-    Name       string `json:"name" dynamodbav:"name"`
-    Type       string `json:"type" dynamodbav:"type"`
-    HomeID     string `json:"homeId" dynamodbav:"homeId"`
-    CreatedAt  int64  `json:"createdAt" dynamodbav:"createdAt"`
-    ModifiedAt int64  `json:"modifiedAt" dynamodbav:"modifiedAt"`
+	ID         string `json:"id" dynamodbav:"id"`
+	Mac        string `json:"mac" dynamodbav:"mac"`
+	Name       string `json:"name" dynamodbav:"name"`
+	Type       string `json:"type" dynamodbav:"type"`
+	HomeID     string `json:"homeId" dynamodbav:"homeId"`
+	CreatedAt  int64  `json:"createdAt" dynamodbav:"createdAt"`
+	ModifiedAt int64  `json:"modifiedAt" dynamodbav:"modifiedAt"`
 }
-
 
 var (
 	dynamoClient *dynamodb.Client
@@ -44,11 +43,18 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	var device Device
 
 	if err := json.Unmarshal([]byte(req.Body), &device); err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Invalid JSON"}, nil
+		errMsg := fmt.Sprintf("Invalid JSON: %v", err)
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Body:       errMsg,
+		}, nil
 	}
 
 	if device.ID == "" || device.Mac == "" || device.Name == "" || device.Type == "" {
-		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Missing required fields"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Body:       "Missing required fields: id, mac, name, type must be present",
+		}, nil
 	}
 
 	now := time.Now().UnixMilli()
@@ -57,7 +63,11 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 
 	item, err := attributevalue.MarshalMap(device)
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Marshaling error"}, nil
+		errMsg := fmt.Sprintf("Error marshaling item: %v", err)
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Body:       errMsg,
+		}, nil
 	}
 
 	_, err = dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{
@@ -65,10 +75,17 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		Item:      item,
 	})
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: fmt.Sprintf("DynamoDB error: %v", err)}, nil
+		errMsg := fmt.Sprintf("DynamoDB PutItem error: %v", err)
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Body:       errMsg,
+		}, nil
 	}
 
-	return events.APIGatewayProxyResponse{StatusCode: 201, Body: "Device created"}, nil
+	return events.APIGatewayProxyResponse{
+		StatusCode: 201,
+		Body:       "Device created",
+	}, nil
 }
 
 func main() {

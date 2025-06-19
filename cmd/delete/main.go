@@ -32,7 +32,10 @@ func init() {
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	id := req.PathParameters["id"]
 	if id == "" {
-		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Missing device ID"}, nil
+		return events.APIGatewayProxyResponse{
+			StatusCode: 400,
+			Body:       "Missing device ID",
+		}, nil
 	}
 
 	_, err := dynamoClient.DeleteItem(ctx, &dynamodb.DeleteItemInput{
@@ -43,10 +46,17 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	})
 
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: fmt.Sprintf("Failed to delete device: %v", err)}, nil
+		errMsg := fmt.Sprintf("Failed to delete device: %v", err)
+		return events.APIGatewayProxyResponse{
+			StatusCode: 500,
+			Body:       errMsg,
+		}, nil
 	}
 
-	return events.APIGatewayProxyResponse{StatusCode: 200, Body: "Device deleted"}, nil
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Body:       "Device deleted",
+	}, nil
 }
 
 func main() {
