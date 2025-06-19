@@ -3,15 +3,20 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
+	"os"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"os"
+
+	"smart-home-devices/internal/dynamoapi"
 )
 
 type Device struct {
@@ -25,22 +30,26 @@ type Device struct {
 }
 
 var (
-	dynamoClient *dynamodb.Client
+	dynamoClient dynamoapi.DynamoAPI
 	tableName    string
 )
 
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		panic("unable to load AWS config: " + err.Error())
+		log.Fatalf("unable to load AWS config: %v", err)
 	}
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	tableName = os.Getenv("DEVICES_TABLE")
+	if tableName == "" {
+		log.Fatalf("DEVICES_TABLE environment variable is not set")
+	}
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	id := req.PathParameters["id"]
 	if id == "" {
+		log.Println("Missing device ID in request")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
 			Body:       "Missing device ID",
@@ -54,13 +63,15 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		},
 	})
 	if err != nil {
+		log.Printf("DynamoDB GetItem error for id %s: %v", id, err)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
-			Body:       fmt.Sprintf("DynamoDB error: %v", err),
+			Body:       "Internal server error",
 		}, nil
 	}
 
 	if resp.Item == nil || len(resp.Item) == 0 {
+		log.Printf("Device not found: %s", id)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 404,
 			Body:       "Device not found",
@@ -69,17 +80,19 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 
 	var device Device
 	if err := attributevalue.UnmarshalMap(resp.Item, &device); err != nil {
+		log.Printf("Unmarshal error for id %s: %v", id, err)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
-			Body:       "Unmarshal error",
+			Body:       "Internal server error",
 		}, nil
 	}
 
 	body, err := json.Marshal(device)
 	if err != nil {
+		log.Printf("Marshal error for id %s: %v", id, err)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
-			Body:       "Marshal error",
+			Body:       "Internal server error",
 		}, nil
 	}
 

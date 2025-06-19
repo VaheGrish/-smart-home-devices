@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -13,17 +13,18 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"smart-home-devices/internal/dynamoapi"
 )
 
 var (
-	dynamoClient *dynamodb.Client
+	dynamoClient dynamoapi.DynamoAPI
 	tableName    string
 )
 
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		panic("unable to load AWS config: " + err.Error())
+		log.Fatalf("unable to load AWS config: %v", err)
 	}
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	tableName = os.Getenv("DEVICES_TABLE")
@@ -32,6 +33,7 @@ func init() {
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	id := req.PathParameters["id"]
 	if id == "" {
+		log.Println("Missing device ID in request")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
 			Body:       "Missing device ID",
@@ -46,13 +48,14 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	})
 
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to delete device: %v", err)
+		log.Printf("Failed to delete device with id %s: %v", id, err)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
-			Body:       errMsg,
+			Body:       "Failed to delete device",
 		}, nil
 	}
 
+	log.Printf("Device deleted successfully: %s", id)
 	return events.APIGatewayProxyResponse{
 		StatusCode: 200,
 		Body:       "Device deleted",

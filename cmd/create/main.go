@@ -3,15 +3,18 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
+	"os"
+	"time"
+
+	"smart-home-devices/internal/dynamoapi"
+
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"os"
-	"time"
 )
 
 type Device struct {
@@ -25,14 +28,14 @@ type Device struct {
 }
 
 var (
-	dynamoClient *dynamodb.Client
+	dynamoClient dynamoapi.DynamoAPI
 	tableName    string
 )
 
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		panic("Unable to load AWS config: " + err.Error())
+		log.Fatalf("Unable to load AWS config: %v", err)
 	}
 
 	dynamoClient = dynamodb.NewFromConfig(cfg)
@@ -40,17 +43,16 @@ func init() {
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	var device Device
+	log.Printf("Received request: %s", req.Body)
 
+	var device Device
 	if err := json.Unmarshal([]byte(req.Body), &device); err != nil {
-		errMsg := fmt.Sprintf("Invalid JSON: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 400,
-			Body:       errMsg,
-		}, nil
+		log.Printf("Invalid JSON: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Invalid JSON"}, nil
 	}
 
 	if device.ID == "" || device.Mac == "" || device.Name == "" || device.Type == "" {
+		log.Printf("Missing required fields")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 400,
 			Body:       "Missing required fields: id, mac, name, type must be present",
@@ -63,29 +65,23 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 
 	item, err := attributevalue.MarshalMap(device)
 	if err != nil {
-		errMsg := fmt.Sprintf("Error marshaling item: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Body:       errMsg,
-		}, nil
+		log.Printf("Error marshaling item: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Marshal error"}, nil
 	}
+
+	log.Printf("Putting item into DynamoDB table %s: %+v", tableName, device)
 
 	_, err = dynamoClient.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(tableName),
 		Item:      item,
 	})
 	if err != nil {
-		errMsg := fmt.Sprintf("DynamoDB PutItem error: %v", err)
-		return events.APIGatewayProxyResponse{
-			StatusCode: 500,
-			Body:       errMsg,
-		}, nil
+		log.Printf("DynamoDB PutItem error: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "DynamoDB error"}, nil
 	}
 
-	return events.APIGatewayProxyResponse{
-		StatusCode: 201,
-		Body:       "Device created",
-	}, nil
+	log.Printf("Device created successfully: %s", device.ID)
+	return events.APIGatewayProxyResponse{StatusCode: 201, Body: "Device created"}, nil
 }
 
 func main() {

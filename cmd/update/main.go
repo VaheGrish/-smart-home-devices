@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -13,12 +13,15 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	"smart-home-devices/internal/dynamoapi"
 )
 
 var (
-	dynamoClient *dynamodb.Client
+	dynamoClient dynamoapi.DynamoAPI
 	tableName    string
 )
 
@@ -33,20 +36,25 @@ type UpdateDeviceRequest struct {
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		panic("Unable to load AWS config: " + err.Error())
+		log.Fatalf("Unable to load AWS config: %v", err)
 	}
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	tableName = os.Getenv("DEVICES_TABLE")
+	if tableName == "" {
+		log.Fatal("DEVICES_TABLE environment variable not set")
+	}
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	var updateReq UpdateDeviceRequest
 	err := json.Unmarshal([]byte(req.Body), &updateReq)
 	if err != nil {
+		log.Printf("Invalid JSON: %v", err)
 		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Invalid JSON"}, nil
 	}
 
 	if updateReq.ID == "" {
+		log.Println("Missing device ID")
 		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Missing device ID"}, nil
 	}
 
@@ -88,9 +96,11 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 
 	_, err = dynamoClient.UpdateItem(ctx, input)
 	if err != nil {
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: fmt.Sprintf("Update error: %v", err)}, nil
+		log.Printf("Update error: %v", err)
+		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Update error: " + err.Error()}, nil
 	}
 
+	log.Printf("Device %s updated successfully", updateReq.ID)
 	return events.APIGatewayProxyResponse{StatusCode: 200, Body: "Device updated"}, nil
 }
 
