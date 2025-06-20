@@ -4,19 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
+	"smart-home-devices/internal/dynamoapi"
 )
 
-var dynamoClient *dynamodb.Client
-var tableName string
+var (
+	dynamoClient dynamoapi.DynamoAPI
+	tableName    string
+)
 
 type UpdateMessage struct {
 	ID     string `json:"id"`
@@ -26,19 +33,22 @@ type UpdateMessage struct {
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		panic(err)
+		log.Fatalf("unable to load AWS config: %v", err)
 	}
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	tableName = os.Getenv("DEVICES_TABLE")
+	if tableName == "" {
+		log.Fatalf("DEVICES_TABLE environment variable is not set")
+	}
 }
 
 func handler(ctx context.Context, event events.SQSEvent) error {
 	for _, record := range event.Records {
-		fmt.Println("Received message body:", record.Body)
+		log.Printf("Received message body: %s", record.Body)
 
 		var msg UpdateMessage
 		if err := json.Unmarshal([]byte(record.Body), &msg); err != nil {
-			fmt.Println("Failed to unmarshal message:", err)
+			log.Printf("Failed to unmarshal message: %v", err)
 			continue
 		}
 
@@ -55,10 +65,10 @@ func handler(ctx context.Context, event events.SQSEvent) error {
 			},
 		})
 		if err != nil {
-			fmt.Printf("Failed to update device %s: %v\n", msg.ID, err)
+			log.Printf("Failed to update device %s: %v", msg.ID, err)
 			continue
 		}
-		fmt.Println("Updated device:", msg.ID)
+		log.Printf("Updated device: %s", msg.ID)
 	}
 	return nil
 }
