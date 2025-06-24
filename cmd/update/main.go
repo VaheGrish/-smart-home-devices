@@ -5,33 +5,21 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"strconv"
-	"time"
+
+	"smart-home-devices/internal/dynamoapi"
+	"smart-home-devices/internal/service"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-
-	"smart-home-devices/internal/dynamoapi"
 )
 
 var (
 	dynamoClient dynamoapi.DynamoAPI
 	tableName    string
 )
-
-type UpdateDeviceRequest struct {
-	ID     string  `json:"id"`
-	Mac    *string `json:"mac,omitempty"`
-	Name   *string `json:"name,omitempty"`
-	Type   *string `json:"type,omitempty"`
-	HomeID *string `json:"homeId,omitempty"`
-}
 
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
@@ -46,61 +34,24 @@ func init() {
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	var updateReq UpdateDeviceRequest
-	err := json.Unmarshal([]byte(req.Body), &updateReq)
-	if err != nil {
+
+	var updateReq map[string]interface{}
+	if err := json.Unmarshal([]byte(req.Body), &updateReq); err != nil {
 		log.Printf("Invalid JSON: %v", err)
 		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Invalid JSON"}, nil
 	}
 
-	if updateReq.ID == "" {
-		log.Println("Missing device ID")
-		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Missing device ID"}, nil
-	}
-
-	updateExpr := "SET modifiedAt = :mod"
-	exprAttrValues := map[string]types.AttributeValue{
-		":mod": &types.AttributeValueMemberN{Value: strconv.FormatInt(time.Now().UnixMilli(), 10)},
-	}
-	exprAttrNames := map[string]string{}
-
-	if updateReq.Name != nil {
-		updateExpr += ", #N = :name"
-		exprAttrValues[":name"] = &types.AttributeValueMemberS{Value: *updateReq.Name}
-		exprAttrNames["#N"] = "name"
-	}
-	if updateReq.Mac != nil {
-		updateExpr += ", mac = :mac"
-		exprAttrValues[":mac"] = &types.AttributeValueMemberS{Value: *updateReq.Mac}
-	}
-	if updateReq.Type != nil {
-		updateExpr += ", #T = :type"
-		exprAttrValues[":type"] = &types.AttributeValueMemberS{Value: *updateReq.Type}
-		exprAttrNames["#T"] = "type"
-	}
-	if updateReq.HomeID != nil {
-		updateExpr += ", homeId = :homeId"
-		exprAttrValues[":homeId"] = &types.AttributeValueMemberS{Value: *updateReq.HomeID}
-	}
-
-	input := &dynamodb.UpdateItemInput{
-		TableName:                 aws.String(tableName),
-		Key:                       map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: updateReq.ID}},
-		UpdateExpression:          aws.String(updateExpr),
-		ExpressionAttributeValues: exprAttrValues,
-	}
-
-	if len(exprAttrNames) > 0 {
-		input.ExpressionAttributeNames = exprAttrNames
-	}
-
-	_, err = dynamoClient.UpdateItem(ctx, input)
+	err := service.UpdateDevice(ctx, dynamoClient, tableName, updateReq)
 	if err != nil {
+		if err == service.ErrMissingID {
+			log.Printf("Validation error: %v", err)
+			return events.APIGatewayProxyResponse{StatusCode: 400, Body: err.Error()}, nil
+		}
 		log.Printf("Update error: %v", err)
-		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Update error: " + err.Error()}, nil
+		return events.APIGatewayProxyResponse{StatusCode: 500, Body: "Internal Server Error"}, nil
 	}
 
-	log.Printf("Device %s updated successfully", updateReq.ID)
+	log.Printf("Device %v updated successfully", updateReq["id"])
 	return events.APIGatewayProxyResponse{StatusCode: 200, Body: "Device updated"}, nil
 }
 
