@@ -13,22 +13,6 @@ provider:
     DEVICE_QUEUE_URL:
       Ref: DeviceQueue
 
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - dynamodb:PutItem
-        - dynamodb:GetItem
-        - dynamodb:UpdateItem
-        - dynamodb:DeleteItem
-        - dynamodb:Scan
-        - sqs:SendMessage
-        - sqs:ReceiveMessage
-        - sqs:DeleteMessage
-        - sqs:GetQueueAttributes
-        - logs:CreateLogGroup
-        - logs:CreateLogStream
-        - logs:PutLogEvents
-      Resource: "*"
 
 package:
   individually: true
@@ -40,21 +24,49 @@ functions:
     handler: bootstrap
     package:
       artifact: build/create.zip
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource:
+          Fn::GetAtt: [DevicesTable, Arn]
+      - ${file(./serverless.iam.logs.yml):LogAccess}
 
   get:
     handler: bootstrap
     package:
       artifact: build/get.zip
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+        Resource:
+          Fn::GetAtt: [DevicesTable, Arn]
+      - ${file(./serverless.iam.logs.yml):LogAccess}
 
   update:
     handler: bootstrap
     package:
       artifact: build/update.zip
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem
+        Resource:
+          Fn::GetAtt: [DevicesTable, Arn]
+      - ${file(./serverless.iam.logs.yml):LogAccess}
 
   delete:
     handler: bootstrap
     package:
       artifact: build/delete.zip
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:DeleteItem
+        Resource:
+          Fn::GetAtt: [DevicesTable, Arn]
+      - ${file(./serverless.iam.logs.yml):LogAccess}
 
   sqs:
     handler: bootstrap
@@ -66,6 +78,20 @@ functions:
             Fn::GetAtt:
               - DeviceQueue
               - Arn
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:UpdateItem
+        Resource:
+          Fn::GetAtt: [DevicesTable, Arn]
+      - Effect: Allow
+        Action:
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+          - sqs:GetQueueAttributes
+        Resource:
+          Fn::GetAtt: [DeviceQueue, Arn]
+      - ${file(./serverless.iam.logs.yml):LogAccess}
 
 resources:
   Resources:

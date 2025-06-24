@@ -3,21 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"smart-home-devices/internal/dynamoapi"
+	"smart-home-devices/internal/service"
 )
 
 var (
@@ -52,18 +48,12 @@ func handler(ctx context.Context, event events.SQSEvent) error {
 			continue
 		}
 
-		now := time.Now().UnixMilli()
-		_, err := dynamoClient.UpdateItem(ctx, &dynamodb.UpdateItemInput{
-			TableName: aws.String(tableName),
-			Key: map[string]types.AttributeValue{
-				"id": &types.AttributeValueMemberS{Value: msg.ID},
-			},
-			UpdateExpression: aws.String("SET homeId = :h, modifiedAt = :m"),
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":h": &types.AttributeValueMemberS{Value: msg.HomeID},
-				":m": &types.AttributeValueMemberN{Value: fmt.Sprint(now)},
-			},
-		})
+		updateData := map[string]interface{}{
+			"id":     msg.ID,
+			"homeId": msg.HomeID,
+		}
+
+		err := service.UpdateDevice(ctx, dynamoClient, tableName, updateData)
 		if err != nil {
 			log.Printf("Failed to update device %s: %v", msg.ID, err)
 			continue

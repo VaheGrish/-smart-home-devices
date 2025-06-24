@@ -8,12 +8,11 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+
 	"smart-home-devices/internal/dynamoapi"
+	"smart-home-devices/internal/service"
 )
 
 var (
@@ -24,10 +23,13 @@ var (
 func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		log.Fatalf("unable to load AWS config: %v", err)
+		log.Fatalf("Unable to load AWS config: %v", err)
 	}
 	dynamoClient = dynamodb.NewFromConfig(cfg)
 	tableName = os.Getenv("DEVICES_TABLE")
+	if tableName == "" {
+		log.Fatal("DEVICES_TABLE environment variable not set")
+	}
 }
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -40,13 +42,7 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		}, nil
 	}
 
-	_, err := dynamoClient.DeleteItem(ctx, &dynamodb.DeleteItemInput{
-		TableName: aws.String(tableName),
-		Key: map[string]types.AttributeValue{
-			"id": &types.AttributeValueMemberS{Value: id},
-		},
-	})
-
+	err := service.DeleteDevice(ctx, dynamoClient, tableName, id)
 	if err != nil {
 		log.Printf("Failed to delete device with id %s: %v", id, err)
 		return events.APIGatewayProxyResponse{
