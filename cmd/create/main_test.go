@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
+
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/stretchr/testify/assert"
 
@@ -14,13 +15,18 @@ import (
 )
 
 func HandlerWithClient(client dynamoapi.DynamoAPI, tableName string) func(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	svc := service.NewDeviceService(client, tableName)
+	return HandlerWithService(svc)
+}
+
+func HandlerWithService(svc service.DeviceService) func(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	return func(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 		var device service.Device
 		if err := json.Unmarshal([]byte(req.Body), &device); err != nil {
 			return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Invalid JSON"}, nil
 		}
 
-		err := service.CreateDevice(ctx, client, tableName, &device)
+		err := svc.Create(ctx, &device)
 		if err != nil {
 			if err == service.ErrMissingFields {
 				return events.APIGatewayProxyResponse{StatusCode: 400, Body: err.Error()}, nil
@@ -35,6 +41,7 @@ func HandlerWithClient(client dynamoapi.DynamoAPI, tableName string) func(ctx co
 func TestCreateHandler_Success(t *testing.T) {
 	mockClient := &dynamoapi.MockDynamoClient{
 		PutItemFunc: func(ctx context.Context, input *dynamodb.PutItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
+
 			return &dynamodb.PutItemOutput{}, nil
 		},
 	}

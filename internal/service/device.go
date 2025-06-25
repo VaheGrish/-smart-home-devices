@@ -31,7 +31,23 @@ var (
 	ErrMissingFields  = errors.New("missing required fields: id, mac, name, type must be present")
 )
 
-func CreateDevice(ctx context.Context, client dynamoapi.DynamoAPI, table string, device *Device) error {
+type DeviceService interface {
+	Create(ctx context.Context, device *Device) error
+	GetByID(ctx context.Context, id string) (string, error)
+	Update(ctx context.Context, updateReq map[string]interface{}) error
+	Delete(ctx context.Context, id string) error
+}
+
+type deviceService struct {
+	db    dynamoapi.DynamoAPI
+	table string
+}
+
+func NewDeviceService(db dynamoapi.DynamoAPI, table string) DeviceService {
+	return &deviceService{db: db, table: table}
+}
+
+func (s *deviceService) Create(ctx context.Context, device *Device) error {
 	if device.ID == "" || device.Mac == "" || device.Name == "" || device.Type == "" {
 		return ErrMissingFields
 	}
@@ -45,20 +61,20 @@ func CreateDevice(ctx context.Context, client dynamoapi.DynamoAPI, table string,
 		return err
 	}
 
-	_, err = client.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: aws.String(table),
+	_, err = s.db.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: aws.String(s.table),
 		Item:      item,
 	})
 	return err
 }
 
-func GetDeviceByID(ctx context.Context, client dynamoapi.DynamoAPI, tableName, id string) (string, error) {
+func (s *deviceService) GetByID(ctx context.Context, id string) (string, error) {
 	if id == "" {
 		return "", ErrMissingID
 	}
 
-	resp, err := client.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: aws.String(tableName),
+	resp, err := s.db.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: aws.String(s.table),
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: id},
 		},
@@ -84,7 +100,7 @@ func GetDeviceByID(ctx context.Context, client dynamoapi.DynamoAPI, tableName, i
 	return string(data), nil
 }
 
-func UpdateDevice(ctx context.Context, client dynamoapi.DynamoAPI, tableName string, updateReq map[string]interface{}) error {
+func (s *deviceService) Update(ctx context.Context, updateReq map[string]interface{}) error {
 	id, ok := updateReq["id"].(string)
 	if !ok || id == "" {
 		return ErrMissingID
@@ -116,7 +132,7 @@ func UpdateDevice(ctx context.Context, client dynamoapi.DynamoAPI, tableName str
 	}
 
 	input := &dynamodb.UpdateItemInput{
-		TableName:                 aws.String(tableName),
+		TableName:                 aws.String(s.table),
 		Key:                       map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: id}},
 		UpdateExpression:          aws.String(expr),
 		ExpressionAttributeValues: values,
@@ -125,16 +141,16 @@ func UpdateDevice(ctx context.Context, client dynamoapi.DynamoAPI, tableName str
 		input.ExpressionAttributeNames = names
 	}
 
-	_, err := client.UpdateItem(ctx, input)
+	_, err := s.db.UpdateItem(ctx, input)
 	return err
 }
 
-func DeleteDevice(ctx context.Context, client dynamoapi.DynamoAPI, tableName, id string) error {
+func (s *deviceService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return ErrMissingID
 	}
-	_, err := client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
-		TableName: aws.String(tableName),
+	_, err := s.db.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+		TableName: aws.String(s.table),
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: id},
 		},

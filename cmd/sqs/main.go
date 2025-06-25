@@ -53,7 +53,9 @@ func handler(ctx context.Context, event events.SQSEvent) error {
 			"homeId": msg.HomeID,
 		}
 
-		err := service.UpdateDevice(ctx, dynamoClient, tableName, updateData)
+		svc := service.NewDeviceService(dynamoClient, tableName)
+		err := svc.Update(ctx, updateData)
+
 		if err != nil {
 			log.Printf("Failed to update device %s: %v", msg.ID, err)
 			continue

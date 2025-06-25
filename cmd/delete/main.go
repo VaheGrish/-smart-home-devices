@@ -42,7 +42,9 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		}, nil
 	}
 
-	err := service.DeleteDevice(ctx, dynamoClient, tableName, id)
+	svc := service.NewDeviceService(dynamoClient, tableName)
+	err := svc.Delete(ctx, id)
+
 	if err != nil {
 		log.Printf("Failed to delete device with id %s: %v", id, err)
 		return events.APIGatewayProxyResponse{
