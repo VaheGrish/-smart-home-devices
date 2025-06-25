@@ -38,7 +38,9 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		return events.APIGatewayProxyResponse{StatusCode: 400, Body: "Invalid JSON"}, nil
 	}
 
-	err := service.CreateDevice(ctx, dynamoClient, tableName, &device)
+	svc := service.NewDeviceService(dynamoClient, tableName)
+	err := svc.Create(ctx, &device)
+
 	if err != nil {
 		if err == service.ErrMissingFields {
 			log.Printf("Validation error: %v", err)

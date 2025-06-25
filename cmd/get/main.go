@@ -37,7 +37,9 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	id := req.PathParameters["id"]
 	log.Printf("Received request for device ID: %s", id)
 
-	data, err := service.GetDeviceByID(ctx, dynamoClient, tableName, id)
+	svc := service.NewDeviceService(dynamoClient, tableName)
+	data, err := svc.GetByID(ctx, id)
+
 	if err != nil {
 		log.Printf("Error getting device %s: %v", id, err)
 		switch err {
